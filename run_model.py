@@ -107,6 +107,22 @@ DATASETS = {
         "default_start": 50,
         "t0_fields": ["pressure"],
     },
+    "rayleigh_benard": {
+        "hdf5": Path("data/datasets/rayleigh_benard/data/test/"
+                     "rayleigh_benard_Rayleigh_1e9_Prandtl_5.hdf5"),
+        "title": "Rayleigh-Bénard Convection",
+        "active_channels": (0, 2, 3, 4),  # pressure, buoyancy→temp, vel_x, vel_y
+        "fields": [
+            (0, "Pressure", "inferno"),
+            (2, "Temperature", "hot"),
+            (3, "Velocity X", "coolwarm"),
+            (4, "Velocity Y", "coolwarm"),
+            (-1, "|Velocity|", "magma"),
+        ],
+        "default_start": 10,
+        "t0_fields": ["pressure", "buoyancy"],
+        "buoyancy_as_temperature": True,
+    },
 }
 
 
@@ -250,6 +266,8 @@ def load_data(dataset_name: str, traj_idx: int, start_t: int,
             pressure = f["t0_fields/pressure"][traj_idx]
             density = (f["t0_fields/density"][traj_idx]
                        if "density" in ds.get("t0_fields", []) else None)
+            buoyancy = (f["t0_fields/buoyancy"][traj_idx]
+                        if "buoyancy" in ds.get("t0_fields", []) else None)
             velocity = f["t1_fields/velocity"][traj_idx]
 
         n_t, H, W = pressure.shape
@@ -257,6 +275,8 @@ def load_data(dataset_name: str, traj_idx: int, start_t: int,
         data[..., 0] = pressure
         if density is not None:
             data[..., 1] = density
+        if buoyancy is not None:
+            data[..., 2] = buoyancy  # buoyancy → temperature channel
         data[..., 3] = velocity[..., 0]
         data[..., 4] = velocity[..., 1]
 
