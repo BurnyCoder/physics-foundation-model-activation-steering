@@ -12,10 +12,12 @@ Paper: https://arxiv.org/abs/2509.13805
 
 ```bash
 # Uses uv with hatchling build backend. PyTorch from cu129 index.
-pip install -e ".[dev]"
+# Shared venv in parent mechinterp/ workspace.
+source ../.venv/bin/activate
+uv pip install -e ".[dev]"
 ```
 
-Requires Python >= 3.13.
+Requires Python >= 3.12.
 
 ## Running Tests
 

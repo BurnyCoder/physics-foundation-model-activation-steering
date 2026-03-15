@@ -46,14 +46,12 @@ Current physics-aware ML models are fundamentally limited to single, narrow doma
 
 ## Installation
 
-We are using conda and pip to manage the dependencies.
+We use [uv](https://docs.astral.sh/uv/) with a shared venv in the parent `mechinterp/` workspace.
 
 ```bash
-conda create -n gphyt python=3.12
-conda activate gphyt
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well wandb dotenv torchtnt pytest
-pip install -e .
+# From the project directory:
+source ../.venv/bin/activate
+uv pip install -e ".[dev]"
 ```
 
 ## Datasets
