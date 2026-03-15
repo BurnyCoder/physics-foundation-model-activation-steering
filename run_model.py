@@ -65,6 +65,19 @@ DATASETS = {
         ],
         "default_start": 0,
     },
+    "euler": {
+        "npz": Path("data/euler_sample.npz"),
+        "title": "Euler Compressible Flow",
+        "active_channels": (0, 1, 3, 4),  # pressure, density, momentum_x, momentum_y
+        "fields": [
+            (0, "Pressure", "inferno"),
+            (1, "Density", "viridis"),
+            (3, "Momentum X", "coolwarm"),
+            (4, "Momentum Y", "coolwarm"),
+            (-1, "|Momentum|", "magma"),
+        ],
+        "default_start": 5,
+    },
     "turbulent_radiative": {
         "hdf5": Path("data/datasets/turbulent_radiative_layer_2D/data/test/"
                      "turbulent_radiative_layer_tcool_0.32.hdf5"),
@@ -221,19 +234,31 @@ def load_data(dataset_name: str, traj_idx: int, start_t: int,
         t = torch.from_numpy(data)
         return t[:N_STEPS_INPUT].unsqueeze(0), t[N_STEPS_INPUT:]
 
-    with h5py.File(ds["hdf5"], "r") as f:
-        pressure = f["t0_fields/pressure"][traj_idx]
-        density = (f["t0_fields/density"][traj_idx]
-                   if "density" in ds.get("t0_fields", []) else None)
-        velocity = f["t1_fields/velocity"][traj_idx]
-
-    n_t, H, W = pressure.shape
-    data = np.zeros((n_t, H, W, INPUT_CHANNELS), dtype=np.float32)
-    data[..., 0] = pressure
-    if density is not None:
+    # Euler dataset: loaded from pre-downloaded npz (streamed from remote HDF5)
+    if "npz" in ds:
+        npz = np.load(ds["npz"])
+        pressure, density = npz["pressure"], npz["density"]
+        momentum = npz["momentum"]
+        n_t, H, W = pressure.shape
+        data = np.zeros((n_t, H, W, INPUT_CHANNELS), dtype=np.float32)
+        data[..., 0] = pressure
         data[..., 1] = density
-    data[..., 3] = velocity[..., 0]
-    data[..., 4] = velocity[..., 1]
+        data[..., 3] = momentum[..., 0]
+        data[..., 4] = momentum[..., 1]
+    else:
+        with h5py.File(ds["hdf5"], "r") as f:
+            pressure = f["t0_fields/pressure"][traj_idx]
+            density = (f["t0_fields/density"][traj_idx]
+                       if "density" in ds.get("t0_fields", []) else None)
+            velocity = f["t1_fields/velocity"][traj_idx]
+
+        n_t, H, W = pressure.shape
+        data = np.zeros((n_t, H, W, INPUT_CHANNELS), dtype=np.float32)
+        data[..., 0] = pressure
+        if density is not None:
+            data[..., 1] = density
+        data[..., 3] = velocity[..., 0]
+        data[..., 4] = velocity[..., 1]
 
     # Instance normalize from input window
     window = data[start_t : start_t + N_STEPS_INPUT]
