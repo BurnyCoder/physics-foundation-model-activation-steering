@@ -12,10 +12,9 @@
 Tests mirror the package layout in `tests/` (`tests/test_data/`, `tests/test_models/`, `tests/test_train/`) and cover dataset handling, tokenizer and transformer internals, baseline models, and trainer utilities. Reference assets are stored in `images/`; the README uses `images/arch.png` for the architecture overview and `images/result.png` for representative zero-shot or in-context prediction results. The repository root also includes [`paper.pdf`](/workspace/physics-foundation-model-activation-steering/paper.pdf), the bundled full paper "Towards a Physics Foundation Model." It contains the research motivation and related work, the General Physics Transformer architecture, dataset descriptions, reference model baselines, core results, long-horizon predictions on individual physics settings, in-context learning results, ablations on what makes a useful physics foundation model, limitations, conclusion, and appendix sections with dataset details and model and training hyperparameters. Use it when you need the intended scientific framing or to confirm how a code path maps back to the paper. The README also points to the live paper at <https://arxiv.org/abs/2509.13805>, a qualitative results blog post at <https://flowsnr.github.io/blog/physics-foundation-model/>, and pretrained weights at <https://huggingface.co/flwi/Physics-Foundation-Model>; these are the first places to look for claims, visual examples, and checkpoint provenance. The README's headline results are also useful orientation when evaluating regressions: it claims strong gains over FNO on the multiphysics benchmark, zero-shot adaptation to new boundary conditions and novel physics, and stable 50-step autoregressive predictions.
 
 ## Build, Test, and Development Commands
-Use the shared virtual environment described in the repo:
+Use `uv` for dependency installation:
 
 ```bash
-source ../.venv/bin/activate
 uv pip install -e ".[dev]"
 ```
 

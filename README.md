@@ -46,11 +46,10 @@ Current physics-aware ML models are fundamentally limited to single, narrow doma
 
 ## Installation
 
-We use [uv](https://docs.astral.sh/uv/) with a shared venv in the parent `mechinterp/` workspace.
+We use [uv](https://docs.astral.sh/uv/) for dependency management.
 
 ```bash
-# From the project directory:
-source ../.venv/bin/activate
+# From the project directory
 uv pip install -e ".[dev]"
 ```
 
