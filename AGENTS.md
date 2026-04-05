@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`gphyt/` is the main Python package. Keep data loading in `gphyt/data/`, model code in `gphyt/models/`, and training or evaluation entry points in `gphyt/train/`. Transformer-specific components live under `gphyt/models/transformer/`; tokenizer code lives in `gphyt/models/tokenizer/`. Tests mirror the package layout in `tests/` (`tests/test_data/`, `tests/test_models/`, `tests/test_train/`). Reference assets are stored in `images/`, and the default experiment config is [`gphyt/train/train.yml`](/workspace/physics-foundation-model-activation-steering/gphyt/train/train.yml).
+`gphyt/` is the main Python package. Keep data loading in `gphyt/data/`, model code in `gphyt/models/`, and training or evaluation entry points in `gphyt/train/`. Transformer-specific components live under `gphyt/models/transformer/`; tokenizer code lives in `gphyt/models/tokenizer/`. Tests mirror the package layout in `tests/` (`tests/test_data/`, `tests/test_models/`, `tests/test_train/`). Reference assets are stored in `images/`. The repository root also includes [`paper.pdf`](/workspace/physics-foundation-model-activation-steering/paper.pdf), a bundled copy of the paper for project context; only update it when the manuscript itself changes. The default experiment config is [`gphyt/train/train.yml`](/workspace/physics-foundation-model-activation-steering/gphyt/train/train.yml).
 
 ## Build, Test, and Development Commands
 Use the shared virtual environment described in the repo:
