@@ -150,3 +150,83 @@ def test_cli_checkpoint_resolution_and_well_base_path(tmp_path: Path):
 
     assert cli.resolve_checkpoint_path(config) == checkpoint_path
     assert cli._resolve_well_base_path(config) == tmp_path / "data"
+
+
+def test_render_gifs_command(tmp_path: Path, monkeypatch):
+    class TinyRolloutDataset(torch.utils.data.Dataset):
+        def __init__(self):
+            self.dataset_name = "rayleigh_benard"
+            self.config = {
+                "use_normalization": False,
+                "full_trajectory_mode": False,
+                "max_rollout_steps": 4,
+            }
+
+        def __len__(self):
+            return 1
+
+        def __getitem__(self, index):
+            x = torch.zeros(4, 6, 5, 5)
+            y = torch.zeros(4, 6, 5, 5)
+            return x, y
+
+        def copy(self, overwrites=None):
+            dataset = TinyRolloutDataset()
+            dataset.config.update(overwrites or {})
+            return dataset
+
+    class TinyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.bias = torch.nn.Parameter(torch.tensor(0.0))
+            self.attention_blocks = torch.nn.Sequential(torch.nn.Identity())
+
+        def forward(self, x):
+            x = self.attention_blocks(x)
+            return x[:, -1:, ...] + self.bias
+
+    def fake_build_model_from_config(config, checkpoint_path=None, device=None, model_size=None):
+        model = TinyModel()
+        if device is not None:
+            model.to(device)
+        return model
+
+    def fake_get_datasets(config, split="valid"):
+        dataset_name = config["datasets"][0]
+        return {dataset_name: TinyRolloutDataset()}
+
+    monkeypatch.setattr(cli, "build_model_from_config", fake_build_model_from_config)
+    monkeypatch.setattr(cli, "get_datasets", fake_get_datasets)
+    monkeypatch.setattr(
+        cli,
+        "load_direction",
+        lambda path: (torch.tensor([1.0, 0.0, 0.0, 0.0, 0.0]), {"layer_id": "block_out:0"}),
+    )
+
+    config = {
+        "steering": {
+            "backend": "hook",
+            "device": "cpu",
+            "gif_cases": [
+                {
+                    "model_size": "GPT_S",
+                    "dataset": "rayleigh_benard",
+                    "vector_path": str(tmp_path / "vector.safetensors"),
+                    "scale": 1.0,
+                    "traj_idx": 0,
+                    "num_timesteps": 4,
+                    "field": "pressure",
+                    "output_name": "tiny.gif",
+                    "title": "Tiny GIF",
+                }
+            ],
+        },
+        "model": {"transformer": {"model_size": "GPT_S"}},
+        "data": {"datasets": ["rayleigh_benard"]},
+        "outputs": {"gif_dir": str(tmp_path / "gifs")},
+    }
+
+    written = cli.render_gifs_command(config)
+
+    assert len(written) == 1
+    assert written[0].exists()

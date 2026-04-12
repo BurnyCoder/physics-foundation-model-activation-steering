@@ -18,6 +18,9 @@ from gphyt.data.dataset_utils import get_datasets
 from gphyt.models.model_utils import get_model
 from gphyt.steering.adapters import get_backend, list_layer_ids
 from gphyt.steering.eval import (
+    _denormalize_prediction,
+    _full_trajectory_dataset,
+    _run_rollout,
     aggregate_sweep_reports,
     collect_activation_dataset,
     fit_task_vectors,
@@ -30,6 +33,7 @@ from gphyt.steering.eval import (
     write_sweep_report,
 )
 from gphyt.steering.tasks import get_task
+from gphyt.steering.visualize import render_comparison_gif
 
 
 WELL_DATASET_ALIASES = {
@@ -452,6 +456,68 @@ def mirror_artifacts_command(config: dict) -> None:
     subprocess.run(["rclone", "copy", source, destination], check=True)
 
 
+def render_gifs_command(config: dict) -> list[Path]:
+    steering_config = config.get("steering", {})
+    gif_config = steering_config.get("gif_cases", [])
+    if not gif_config:
+        return []
+
+    output_dir = Path(config["outputs"].get("gif_dir", "manuscript/generated/gifs"))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    backend = get_backend(steering_config.get("backend", "auto"))
+    written_paths: list[Path] = []
+
+    for case in gif_config:
+        model_size = case["model_size"]
+        case_config = model_config_for_size(deepcopy(config), model_size)
+        case_config["data"]["datasets"] = [case["dataset"]]
+        model = build_model_from_config(case_config, model_size=model_size)
+        datasets = get_datasets(case_config["data"], split=case.get("split", "valid"))
+        dataset = datasets[case["dataset"]]
+        rollout_dataset = _full_trajectory_dataset(dataset, int(case.get("num_timesteps", 20)))
+        initial_input, full_traj = rollout_dataset[int(case.get("traj_idx", 0))]
+
+        vector_path = Path(case["vector_path"])
+        direction, metadata = load_direction(vector_path)
+
+        baseline_outputs, _ = _run_rollout(
+            model=model,
+            initial_input=initial_input,
+            full_traj=full_traj,
+            device=next(model.parameters()).device,
+            autoregressive=bool(case.get("autoregressive", True)),
+        )
+        steered_outputs, _ = _run_rollout(
+            model=model,
+            initial_input=initial_input,
+            full_traj=full_traj,
+            device=next(model.parameters()).device,
+            backend=backend,
+            layer_id=metadata["layer_id"],
+            direction=direction,
+            scale=float(case["scale"]),
+            autoregressive=bool(case.get("autoregressive", True)),
+        )
+
+        ground_truth = _denormalize_prediction(rollout_dataset, full_traj).detach().cpu().numpy()
+        baseline = _denormalize_prediction(rollout_dataset, baseline_outputs).detach().cpu().numpy()
+        steered = _denormalize_prediction(rollout_dataset, steered_outputs).detach().cpu().numpy()
+
+        output_path = output_dir / case["output_name"]
+        render_comparison_gif(
+            ground_truth,
+            baseline,
+            steered,
+            field_name=case["field"],
+            output_path=output_path,
+            title=case["title"],
+            fps=int(case.get("fps", 3)),
+        )
+        written_paths.append(output_path)
+
+    return written_paths
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Activation steering utilities for GPhyT")
     parser.add_argument("command", choices=[
@@ -460,6 +526,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "fit-vectors",
         "sweep",
         "rollout-sweep",
+        "render-gifs",
         "report",
         "mirror-artifacts",
     ])
@@ -484,6 +551,8 @@ def main(argv: list[str] | None = None):
         return rollout_sweep_command(config)
     if args.command == "report":
         return report_command(config)
+    if args.command == "render-gifs":
+        return render_gifs_command(config)
     if args.command == "mirror-artifacts":
         return mirror_artifacts_command(config)
 

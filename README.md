@@ -74,6 +74,7 @@ python -m gphyt.steering.cli collect-activations --config gphyt/steering/steerin
 python -m gphyt.steering.cli fit-vectors --config gphyt/steering/steering.yml
 python -m gphyt.steering.cli sweep --config gphyt/steering/steering.yml
 python -m gphyt.steering.cli rollout-sweep --config gphyt/steering/steering.yml
+python -m gphyt.steering.cli render-gifs --config gphyt/steering/steering.yml
 python -m gphyt.steering.cli report --config gphyt/steering/steering.yml
 ```
 
@@ -103,6 +104,13 @@ Representative current results:
 - transfer to `turbulent_radiative_layer_2D` is strongest for `GPT_S`
   (`+2.48z` at scale `+2`), while the larger checkpoints stay closer to zero
   under the same bootstrap protocol
+
+Animated comparisons for the strongest current public results are written to
+`manuscript/generated/gifs/` by `render-gifs`. The default config renders:
+
+- [bootstrap_gpt_xl_rollout_pressure.gif](manuscript/generated/gifs/bootstrap_gpt_xl_rollout_pressure.gif)
+- [bootstrap_gpt_xl_rollout_velocity.gif](manuscript/generated/gifs/bootstrap_gpt_xl_rollout_velocity.gif)
+- [bootstrap_gpt_s_transfer_pressure.gif](manuscript/generated/gifs/bootstrap_gpt_s_transfer_pressure.gif)
 
 ## Datasets
 

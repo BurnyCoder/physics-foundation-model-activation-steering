@@ -37,6 +37,7 @@ from gphyt.steering.tasks import (
     get_task,
     get_tasks,
 )
+from gphyt.steering.visualize import extract_display_field, render_comparison_gif
 
 __all__ = [
     "ActivationCollection",
@@ -62,10 +63,12 @@ __all__ = [
     "load_activation_collection",
     "load_direction",
     "quartile_contrast_labels",
+    "render_comparison_gif",
     "required_fields_for_feature",
     "run_scale_sweep",
     "save_activation_collection",
     "save_direction",
+    "extract_display_field",
     "write_sweep_report",
     "zscore",
 ]

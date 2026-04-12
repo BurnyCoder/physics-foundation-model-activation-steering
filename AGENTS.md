@@ -19,9 +19,9 @@
   - transfer reports on public `turbulent_radiative_layer_2D` are now present under `artifacts/bootstrap/transfer/`
   - manuscript-ready figure and table assets were generated under `manuscript/generated/`
 - Immediate next execution steps are:
-  - regenerate manuscript assets and rebuild the PDF after the rollout/transfer additions
-  - run the broader targeted validation suite and commit/push the current public-only study state
-  - revisit `euler_multi_quadrants_periodicBC` only with a more storage-aware bootstrap strategy, since the first attempted partial train download exceeded the writable quota and was removed
+  - stage and commit the newly rendered GIF assets under `manuscript/generated/gifs/`
+  - keep the README/manuscript notes aligned with the actual GIF filenames and locations
+  - keep `euler_multi_quadrants_periodicBC` deferred until a more storage-aware bootstrap strategy exists
 
 ## Current Open Questions
 
