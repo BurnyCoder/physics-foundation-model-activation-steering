@@ -110,7 +110,14 @@ Animated comparisons for the strongest current public results are written to
 
 - [bootstrap_gpt_xl_rollout_pressure.gif](manuscript/generated/gifs/bootstrap_gpt_xl_rollout_pressure.gif)
 - [bootstrap_gpt_xl_rollout_velocity.gif](manuscript/generated/gifs/bootstrap_gpt_xl_rollout_velocity.gif)
+- [bootstrap_gpt_xl_rollout_pressure_neg.gif](manuscript/generated/gifs/bootstrap_gpt_xl_rollout_pressure_neg.gif)
+- [bootstrap_gpt_xl_rollout_velocity_neg.gif](manuscript/generated/gifs/bootstrap_gpt_xl_rollout_velocity_neg.gif)
+- [bootstrap_gpt_s_rollout_pressure.gif](manuscript/generated/gifs/bootstrap_gpt_s_rollout_pressure.gif)
+- [bootstrap_gpt_s_rollout_velocity.gif](manuscript/generated/gifs/bootstrap_gpt_s_rollout_velocity.gif)
+- [bootstrap_gpt_l_rollout_pressure_neg.gif](manuscript/generated/gifs/bootstrap_gpt_l_rollout_pressure_neg.gif)
+- [bootstrap_gpt_m_rollout_pressure_failure.gif](manuscript/generated/gifs/bootstrap_gpt_m_rollout_pressure_failure.gif)
 - [bootstrap_gpt_s_transfer_pressure.gif](manuscript/generated/gifs/bootstrap_gpt_s_transfer_pressure.gif)
+- [bootstrap_gpt_s_transfer_velocity.gif](manuscript/generated/gifs/bootstrap_gpt_s_transfer_velocity.gif)
 
 ## Datasets
 

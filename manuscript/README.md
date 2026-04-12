@@ -19,4 +19,11 @@ Current tracked GIF assets:
 
 - [`bootstrap_gpt_xl_rollout_pressure.gif`](generated/gifs/bootstrap_gpt_xl_rollout_pressure.gif)
 - [`bootstrap_gpt_xl_rollout_velocity.gif`](generated/gifs/bootstrap_gpt_xl_rollout_velocity.gif)
+- [`bootstrap_gpt_xl_rollout_pressure_neg.gif`](generated/gifs/bootstrap_gpt_xl_rollout_pressure_neg.gif)
+- [`bootstrap_gpt_xl_rollout_velocity_neg.gif`](generated/gifs/bootstrap_gpt_xl_rollout_velocity_neg.gif)
+- [`bootstrap_gpt_s_rollout_pressure.gif`](generated/gifs/bootstrap_gpt_s_rollout_pressure.gif)
+- [`bootstrap_gpt_s_rollout_velocity.gif`](generated/gifs/bootstrap_gpt_s_rollout_velocity.gif)
+- [`bootstrap_gpt_l_rollout_pressure_neg.gif`](generated/gifs/bootstrap_gpt_l_rollout_pressure_neg.gif)
+- [`bootstrap_gpt_m_rollout_pressure_failure.gif`](generated/gifs/bootstrap_gpt_m_rollout_pressure_failure.gif)
 - [`bootstrap_gpt_s_transfer_pressure.gif`](generated/gifs/bootstrap_gpt_s_transfer_pressure.gif)
+- [`bootstrap_gpt_s_transfer_velocity.gif`](generated/gifs/bootstrap_gpt_s_transfer_velocity.gif)

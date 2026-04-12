@@ -85,6 +85,72 @@ steering:
       fps: 3
       output_name: bootstrap_gpt_xl_rollout_velocity.gif
       title: GPT_XL rollout steering on Rayleigh-Benard
+    - model_size: GPT_XL
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_XL/mean_pressure/block_out:0-logistic.safetensors
+      scale: -2
+      traj_idx: 0
+      num_timesteps: 20
+      field: pressure
+      fps: 3
+      output_name: bootstrap_gpt_xl_rollout_pressure_neg.gif
+      title: GPT_XL negative rollout steering on Rayleigh-Benard
+    - model_size: GPT_XL
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_XL/mean_pressure/block_out:0-logistic.safetensors
+      scale: -2
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_xl_rollout_velocity_neg.gif
+      title: GPT_XL negative rollout steering on Rayleigh-Benard
+    - model_size: GPT_S
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_S/mean_pressure/block_out:0-logistic.safetensors
+      scale: 2
+      traj_idx: 0
+      num_timesteps: 20
+      field: pressure
+      fps: 3
+      output_name: bootstrap_gpt_s_rollout_pressure.gif
+      title: GPT_S rollout steering on Rayleigh-Benard
+    - model_size: GPT_S
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_S/mean_pressure/block_out:0-logistic.safetensors
+      scale: 2
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_s_rollout_velocity.gif
+      title: GPT_S rollout steering on Rayleigh-Benard
+    - model_size: GPT_L
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_L/mean_pressure/block_out:0-logistic.safetensors
+      scale: -2
+      traj_idx: 0
+      num_timesteps: 20
+      field: pressure
+      fps: 3
+      output_name: bootstrap_gpt_l_rollout_pressure_neg.gif
+      title: GPT_L negative rollout steering on Rayleigh-Benard
+    - model_size: GPT_M
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_M/mean_pressure/block_out:0-logistic.safetensors
+      scale: 2
+      traj_idx: 0
+      num_timesteps: 20
+      field: pressure
+      fps: 3
+      output_name: bootstrap_gpt_m_rollout_pressure_failure.gif
+      title: GPT_M counter-direction rollout steering on Rayleigh-Benard
     - model_size: GPT_S
       dataset: turbulent_radiative_layer_2d
       split: valid
@@ -95,6 +161,17 @@ steering:
       field: pressure
       fps: 3
       output_name: bootstrap_gpt_s_transfer_pressure.gif
+      title: GPT_S transfer steering on turbulent radiative layer
+    - model_size: GPT_S
+      dataset: turbulent_radiative_layer_2d
+      split: valid
+      vector_path: artifacts/bootstrap/vectors/GPT_S/mean_pressure/block_out:0-logistic.safetensors
+      scale: 2
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_s_transfer_velocity.gif
       title: GPT_S transfer steering on turbulent radiative layer
   default_target_feature: mean_velocity_magnitude
   task_ids:

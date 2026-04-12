@@ -19,7 +19,7 @@
   - transfer reports on public `turbulent_radiative_layer_2D` are now present under `artifacts/bootstrap/transfer/`
   - manuscript-ready figure and table assets were generated under `manuscript/generated/`
 - Immediate next execution steps are:
-  - stage and commit the newly rendered GIF assets under `manuscript/generated/gifs/`
+  - expand the GIF gallery beyond the initial three renders so the repo shows both strong positive steering and interesting failure/counter-direction cases
   - keep the README/manuscript notes aligned with the actual GIF filenames and locations
   - keep `euler_multi_quadrants_periodicBC` deferred until a more storage-aware bootstrap strategy exists
 
