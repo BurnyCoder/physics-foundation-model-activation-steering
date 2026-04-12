@@ -2,6 +2,19 @@
 
 /data/
 /results/
+/artifacts/
+/manuscript/build/
+/manuscript/out/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.toc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

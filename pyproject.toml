@@ -26,6 +26,15 @@ dependencies = [
     "matplotlib",
     "imageio",
     "Pillow",
+    "captum",
+    "huggingface_hub",
+    "pypdf",
+    "pyvene",
+    "safetensors",
+    "scikit-learn",
+    "scipy",
+    "seaborn",
+    "tqdm",
 ]
 
 [project.optional-dependencies]

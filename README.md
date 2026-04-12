@@ -53,6 +53,50 @@ We use [uv](https://docs.astral.sh/uv/) for dependency management.
 uv pip install -e ".[dev]"
 ```
 
+## Activation Steering
+
+The repo now includes a library-first activation steering stack under `gphyt/steering/`.
+It uses `pyvene` as the default intervention backend when available and falls back to
+plain PyTorch hooks if needed. The steering workflow is driven by
+`gphyt/steering/steering.yml`.
+
+Public The Well compatibility is now handled inside `PhysicsDataset`:
+
+- public datasets are resized to `data.out_shape`
+- public field names are mapped into the checkpoint's canonical 5-channel layout
+- missing channels are zero-filled when needed
+- steering reports are denormalized back to physical units where the source stats exist
+
+Example commands:
+
+```bash
+python -m gphyt.steering.cli collect-activations --config gphyt/steering/steering.yml
+python -m gphyt.steering.cli fit-vectors --config gphyt/steering/steering.yml
+python -m gphyt.steering.cli sweep --config gphyt/steering/steering.yml
+python -m gphyt.steering.cli report --config gphyt/steering/steering.yml
+```
+
+Focused steering tests:
+
+```bash
+uv run pytest -q tests/test_steering
+```
+
+### Bootstrap Result
+
+A first public bootstrap run is now recorded under `artifacts/bootstrap/` and
+`manuscript/generated/`:
+
+- checkpoint: `GPT_S`
+- dataset: `rayleigh_benard`
+- task: `mean_pressure`
+- fitted layer: `block_out:0`
+
+The current three-point validation sweep shows strong monotonic control over
+mean pressure. For the difference-of-means direction, scale `-2` produced a
+mean pressure shift of about `-5.27` standard deviations, while scale `+2`
+produced about `+7.76`, with a no-op scale remaining numerically stable.
+
 ## Datasets
 
 This study uses both self-made datasets and datasets from [The Well](https://polymathic-ai.org/the_well/).

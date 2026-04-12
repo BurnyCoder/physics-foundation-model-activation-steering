@@ -8,6 +8,7 @@ from typing import Optional, Any
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 
 from gphyt.data.well_dataset import (
     TrajectoryMetadata,
@@ -15,6 +16,25 @@ from gphyt.data.well_dataset import (
     ZScoreNormalization,
     StrideError,
 )
+
+
+CANONICAL_CHANNEL_ORDER = (
+    "pressure",
+    "density",
+    "temperature",
+    "velocity_x",
+    "velocity_y",
+)
+CHANNEL_ALIASES = {
+    "pressure": ("pressure",),
+    "density": ("density", "buoyancy"),
+    "temperature": ("temperature",),
+    "velocity_x": ("velocity_x",),
+    "velocity_y": ("velocity_y",),
+}
+SUPPORTED_SOURCE_CHANNELS = {
+    alias for aliases in CHANNEL_ALIASES.values() for alias in aliases
+}
 
 
 def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
@@ -45,6 +65,7 @@ def get_phys_dataset(
     flip_y: float = 0.0,
     return_meta: bool = False,
     include_fields: dict[str, list[str]] | None = None,
+    out_shape: tuple[int, int] | list[int] | None = None,
 ) -> Optional["PhysicsDataset"]:
     """Helper function to create a PhysicsDataset."""
     try:
@@ -61,6 +82,7 @@ def get_phys_dataset(
             flip_y=flip_y,
             return_meta=return_meta,
             include_fields=include_fields,
+            out_shape=out_shape,
         )
     except StrideError as e:
         print(f"Error creating PhysicsDataset for {data_dir}: {e}")
@@ -120,7 +142,9 @@ class PhysicsDataset(WellDataset):
         flip_y: float = 0.0,
         return_meta: bool = False,
         include_fields: dict[str, list[str]] | None = None,
+        out_shape: tuple[int, int] | list[int] | None = None,
     ):
+        data_dir = Path(data_dir)
         self.config = {
             "data_dir": data_dir,
             "n_steps_input": n_steps_input,
@@ -134,6 +158,7 @@ class PhysicsDataset(WellDataset):
             "flip_y": flip_y,
             "return_meta": return_meta,
             "include_fields": include_fields,
+            "out_shape": tuple(out_shape) if out_shape is not None else None,
         }
 
         if isinstance(dt_stride, list):
@@ -144,14 +169,15 @@ class PhysicsDataset(WellDataset):
             max_dt_stride = dt_stride
 
         norm_path = None
-        for p in (0, 1):
-            norm_path = data_dir.parents[p] / "stats.yaml"
-            if norm_path.exists():
+        for parent in data_dir.parents:
+            candidate = parent / "stats.yaml"
+            if candidate.exists():
+                norm_path = candidate
                 break
 
         super().__init__(
             path=str(data_dir),
-            normalization_path=str(norm_path) if norm_path is not None else None,
+            normalization_path=str(norm_path.resolve()) if norm_path is not None else None,
             normalization_type=ZScoreNormalization,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
@@ -172,8 +198,66 @@ class PhysicsDataset(WellDataset):
         # give the dataset its correct name
         name = data_dir.parents[1].name
         self.dataset_name = name
+        self.channel_names = [
+            field_name
+            for order in sorted(self.field_names)
+            for field_name in self.field_names[order]
+        ]
 
         self.return_meta = return_meta
+        self.out_shape = tuple(out_shape) if out_shape is not None else None
+
+    def _should_map_to_canonical_channels(self) -> bool:
+        return bool(self.channel_names) and set(self.channel_names).issubset(
+            SUPPORTED_SOURCE_CHANNELS
+        )
+
+    def _canonical_channel_stats(
+        self,
+        device: torch.device,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        mean_values = torch.zeros(len(CANONICAL_CHANNEL_ORDER), device=device)
+        std_values = torch.ones(len(CANONICAL_CHANNEL_ORDER), device=device)
+        if self.norm is None:
+            return mean_values, std_values
+
+        flattened_means = self.norm.flattened_means["variable"].to(device)
+        flattened_stds = self.norm.flattened_stds["variable"].to(device)
+        source_indices = {
+            field_name: idx for idx, field_name in enumerate(self.channel_names)
+        }
+        for target_idx, canonical_name in enumerate(CANONICAL_CHANNEL_ORDER):
+            for alias in CHANNEL_ALIASES[canonical_name]:
+                if alias in source_indices:
+                    source_idx = source_indices[alias]
+                    mean_values[target_idx] = flattened_means[source_idx]
+                    std_values[target_idx] = flattened_stds[source_idx]
+                    break
+        return mean_values, std_values
+
+    def _map_to_canonical_channels(self, tensor: torch.Tensor) -> torch.Tensor:
+        source_indices = {
+            field_name: idx for idx, field_name in enumerate(self.channel_names)
+        }
+        mapped = torch.zeros(
+            (*tensor.shape[:-1], len(CANONICAL_CHANNEL_ORDER)),
+            dtype=tensor.dtype,
+            device=tensor.device,
+        )
+        for target_idx, canonical_name in enumerate(CANONICAL_CHANNEL_ORDER):
+            for alias in CHANNEL_ALIASES[canonical_name]:
+                if alias in source_indices:
+                    mapped[..., target_idx] = tensor[..., source_indices[alias]]
+                    break
+        return mapped
+
+    def denormalize_variable_fields(self, tensor: torch.Tensor) -> torch.Tensor:
+        if self.norm is None:
+            return tensor
+        if self._should_map_to_canonical_channels():
+            mean_values, std_values = self._canonical_channel_stats(tensor.device)
+            return tensor * std_values + mean_values
+        return self.norm.denormalize_flattened(tensor, "variable")
 
     def copy(self, overwrites: dict[str, Any] = {}) -> Optional["PhysicsDataset"]:
         """Copy the dataset with optional overwrites.
@@ -206,7 +290,19 @@ class PhysicsDataset(WellDataset):
             flip_y=config["flip_y"],
             return_meta=config["return_meta"],
             include_fields=config.get("include_fields"),
+            out_shape=config.get("out_shape"),
         )
+
+    def _resize_spatial(self, tensor: torch.Tensor) -> torch.Tensor:
+        if self.out_shape is None or tuple(tensor.shape[1:3]) == self.out_shape:
+            return tensor
+        resized = F.interpolate(
+            tensor.permute(0, 3, 1, 2),
+            size=self.out_shape,
+            mode="bilinear",
+            align_corners=False,
+        )
+        return resized.permute(0, 2, 3, 1)
 
     def __len__(self):
         return super().__len__()
@@ -244,6 +340,13 @@ class PhysicsDataset(WellDataset):
             y[..., -1] = y[..., -1] * -1
         if self.use_instance_norm:
             x, y = self.normalize_data(x, y)
+
+        if self._should_map_to_canonical_channels():
+            x = self._map_to_canonical_channels(x)
+            y = self._map_to_canonical_channels(y)
+
+        x = self._resize_spatial(x)
+        y = self._resize_spatial(y)
 
         if self.return_meta:
             return x.float(), y.float(), metadata

@@ -1,0 +1,82 @@
+assets:
+  first_only: false
+  checkpoints:
+    GPT_S:
+      repo_id: flwi/Physics-Foundation-Model
+      filename: gphyt-S.pth
+    GPT_M:
+      repo_id: flwi/Physics-Foundation-Model
+      filename: gphyt-M.pth
+    GPT_L:
+      repo_id: flwi/Physics-Foundation-Model
+      filename: gphyt-L.pth
+    GPT_XL:
+      repo_id: flwi/Physics-Foundation-Model
+      filename: gphyt-XL.pth
+  well_datasets:
+    - shear_flow
+    - rayleigh_benard
+    - euler_multi_quadrants_periodicbc
+    - turbulent_radiative_layer_2d
+
+model:
+  architecture: gphyt
+  transformer:
+    input_channels: 5
+    model_size: GPT_S
+    att_mode: full
+    dropout: 0.0
+    pos_enc_mode: absolute
+    patch_size: [1, 16, 16]
+    stochastic_depth_rate: 0.0
+    use_derivatives: true
+    integrator: Euler
+  tokenizer:
+    tokenizer_mode: linear
+    detokenizer_mode: linear
+    tokenizer_overlap: 0
+    detokenizer_overlap: 0
+
+data:
+  well_base_path: data
+  data_dir: data/datasets
+  datasets:
+    - shear_flow
+    - rayleigh_benard
+  n_steps_input: 4
+  n_steps_output: 4
+  dt_stride: 1
+  out_shape: [256, 128]
+  use_normalization: true
+  include_fields: null
+
+steering:
+  backend: auto
+  device: cuda:0
+  batch_size: 4
+  max_batches: null
+  model_sizes: [GPT_S, GPT_M, GPT_L, GPT_XL]
+  top_k_layers: 3
+  methods: [mean_diff, logistic, pca]
+  scales: [-4, -2, -1, 0, 1, 2, 4]
+  default_target_feature: mean_velocity_magnitude
+  task_ids:
+    - regime_shear_vs_euler
+    - regime_shear_vs_rayleigh
+    - mean_velocity_magnitude
+    - mean_pressure
+    - enstrophy_proxy
+  auxiliary_features:
+    - mean_velocity_magnitude
+    - mean_pressure
+    - enstrophy_proxy
+
+outputs:
+  artifact_dir: artifacts
+  activation_collection: artifacts/activations/train_collection.npz
+  train_collection: artifacts/activations/train_collection.npz
+  val_collection: artifacts/activations/val_collection.npz
+  vector_dir: artifacts/vectors
+  sweep_dir: artifacts/sweeps
+  combined_report: artifacts/reports/combined_report.csv
+  remote_artifact_dir: gd:projects/physics-foundation-model-mechinterp

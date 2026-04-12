@@ -84,6 +84,71 @@ def test_physics_dataset_nan_to_zero(dummy_datapath: Path):
     assert not torch.any(torch.isnan(y))
 
 
+def test_physics_dataset_finds_stats_three_levels_up(tmp_path: Path, write_dummy_data):
+    data_dir = tmp_path / "datasets" / "demo_dataset" / "data" / "train"
+    dummy_file = data_dir / "sample.hdf5"
+    write_dummy_data(dummy_file)
+    stats_path = tmp_path / "datasets" / "demo_dataset" / "stats.yaml"
+    stats_path.write_text("mean: {}\nstd: {}\nmean_delta: {}\nstd_delta: {}\nrms: {}\nrms_delta: {}\n")
+
+    dataset = PhysicsDataset(data_dir, use_normalization=False)
+
+    assert Path(dataset.normalization_path) == stats_path
+
+
+def test_physics_dataset_maps_public_channel_aliases(dummy_datapath: Path):
+    dataset = PhysicsDataset(dummy_datapath.parent, use_normalization=False)
+    dataset.channel_names = ["pressure", "buoyancy", "velocity_x", "velocity_y"]
+
+    x = torch.zeros(2, 4, 4, 4)
+    x[..., 0] = 1.0
+    x[..., 1] = 2.0
+    x[..., 2] = 3.0
+    x[..., 3] = 4.0
+
+    mapped = dataset._map_to_canonical_channels(x)
+
+    assert mapped.shape[-1] == 5
+    assert torch.all(mapped[..., 0] == 1.0)
+    assert torch.all(mapped[..., 1] == 2.0)
+    assert torch.all(mapped[..., 2] == 0.0)
+    assert torch.all(mapped[..., 3] == 3.0)
+    assert torch.all(mapped[..., 4] == 4.0)
+
+
+def test_physics_dataset_resizes_to_out_shape(dummy_datapath: Path):
+    dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        use_normalization=False,
+        out_shape=(16, 8),
+    )
+
+    x, y = dataset[0]
+
+    assert x.shape == (1, 16, 8, 6)
+    assert y.shape == (1, 16, 8, 6)
+
+
+def test_physics_dataset_denormalizes_canonical_channels(dummy_datapath: Path):
+    dataset = PhysicsDataset(dummy_datapath.parent, use_normalization=False)
+    dataset.channel_names = ["pressure", "buoyancy", "velocity_x", "velocity_y"]
+
+    class DummyNorm:
+        flattened_means = {"variable": torch.tensor([1.0, 2.0, 3.0, 4.0])}
+        flattened_stds = {"variable": torch.tensor([10.0, 20.0, 30.0, 40.0])}
+
+    dataset.norm = DummyNorm()
+    x = torch.ones(1, 2, 2, 5)
+
+    denorm = dataset.denormalize_variable_fields(x)
+
+    assert torch.all(denorm[..., 0] == 11.0)
+    assert torch.all(denorm[..., 1] == 22.0)
+    assert torch.all(denorm[..., 2] == 1.0)
+    assert torch.all(denorm[..., 3] == 33.0)
+    assert torch.all(denorm[..., 4] == 44.0)
+
+
 def test_physics_dataset_copy(dummy_datapath: Path):
     """Test that PhysicsDataset.copy() creates a new dataset with correct parameters."""
     # Create original dataset
