@@ -23,6 +23,7 @@ from gphyt.steering.eval import (
     fit_task_vectors,
     load_activation_collection,
     load_direction,
+    run_rollout_sweep,
     run_scale_sweep,
     save_activation_collection,
     save_direction,
@@ -378,6 +379,60 @@ def sweep_command(
     return written_paths
 
 
+def rollout_sweep_command(
+    config: dict,
+    model: torch.nn.Module | None = None,
+    datasets: dict | None = None,
+    vector_paths: Iterable[str | Path] | None = None,
+    output_dir: str | Path | None = None,
+) -> list[Path]:
+    device = _device_from_config(config)
+    model_size = _configured_model_size(config)
+    model = (
+        build_model_from_config(config, device=device, model_size=model_size)
+        if model is None
+        else model.to(device)
+    )
+    datasets = (
+        get_datasets(config["data"], split=config.get("rollout_split", "valid"))
+        if datasets is None
+        else datasets
+    )
+    output_dir = Path(output_dir or config["outputs"]["rollout_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+    backend = get_backend(config.get("steering", {}).get("backend", "auto"))
+    vector_paths = list(vector_paths or Path(config["outputs"]["vector_dir"]).glob("**/*.safetensors"))
+    written_paths = []
+
+    for vector_path in vector_paths:
+        direction, metadata = load_direction(vector_path)
+        auxiliary_features = config.get("steering", {}).get("auxiliary_features")
+        results = run_rollout_sweep(
+            model=model,
+            backend=backend,
+            datasets=datasets,
+            layer_id=metadata["layer_id"],
+            direction=direction,
+            scales=config.get("steering", {}).get("scales", [-4, -2, -1, 0, 1, 2, 4]),
+            target_feature=metadata["feature_name"] or config["steering"]["default_target_feature"],
+            auxiliary_features=auxiliary_features,
+            num_timesteps=int(config.get("steering", {}).get("rollout_num_timesteps", 50)),
+            num_samples=int(config.get("steering", {}).get("rollout_num_samples", 4)),
+            autoregressive=bool(config.get("steering", {}).get("rollout_autoregressive", True)),
+            device=device,
+        )
+        results.insert(0, "task_id", metadata["task_id"])
+        results.insert(1, "method", metadata["method"])
+        results.insert(2, "model_size", metadata["metadata"].get("model_size", model_size))
+        results.insert(3, "vector_path", str(vector_path))
+        report_name = f"{metadata['task_id']}-{metadata['layer_id']}-{metadata['method']}.csv"
+        report_path = output_dir / report_name
+        write_sweep_report(results, report_path)
+        written_paths.append(report_path)
+
+    return written_paths
+
+
 def report_command(
     config: dict,
     sweep_paths: Iterable[str | Path] | None = None,
@@ -404,6 +459,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "collect-activations",
         "fit-vectors",
         "sweep",
+        "rollout-sweep",
         "report",
         "mirror-artifacts",
     ])
@@ -424,6 +480,8 @@ def main(argv: list[str] | None = None):
         return fit_vectors_command(config)
     if args.command == "sweep":
         return sweep_command(config)
+    if args.command == "rollout-sweep":
+        return rollout_sweep_command(config)
     if args.command == "report":
         return report_command(config)
     if args.command == "mirror-artifacts":

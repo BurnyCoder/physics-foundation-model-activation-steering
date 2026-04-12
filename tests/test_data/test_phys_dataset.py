@@ -115,6 +115,11 @@ def test_physics_dataset_maps_public_channel_aliases(dummy_datapath: Path):
     assert torch.all(mapped[..., 3] == 3.0)
     assert torch.all(mapped[..., 4] == 4.0)
 
+    dataset.channel_names = ["tracer", "pressure", "velocity_x", "velocity_y"]
+    mapped_tracer = dataset._map_to_canonical_channels(x)
+    assert torch.all(mapped_tracer[..., 0] == 2.0)
+    assert torch.all(mapped_tracer[..., 1] == 1.0)
+
 
 def test_physics_dataset_resizes_to_out_shape(dummy_datapath: Path):
     dataset = PhysicsDataset(

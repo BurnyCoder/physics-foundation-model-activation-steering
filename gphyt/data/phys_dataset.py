@@ -27,7 +27,7 @@ CANONICAL_CHANNEL_ORDER = (
 )
 CHANNEL_ALIASES = {
     "pressure": ("pressure",),
-    "density": ("density", "buoyancy"),
+    "density": ("density", "buoyancy", "tracer"),
     "temperature": ("temperature",),
     "velocity_x": ("velocity_x",),
     "velocity_y": ("velocity_y",),

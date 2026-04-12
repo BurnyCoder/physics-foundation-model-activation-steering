@@ -11,20 +11,22 @@
 - Public bootstrap execution has now reached a real checkpoint/data/report path:
   - public checkpoints `GPT_S`, `GPT_M`, `GPT_L`, and `GPT_XL` were downloaded to `artifacts/checkpoints/`
   - the public `rayleigh_benard` dataset was downloaded under `data/datasets/`
+  - the public `shear_flow` and `turbulent_radiative_layer_2D` datasets are also available locally under `data/datasets/`
   - `PhysicsDataset` now maps public field names into the canonical 5-channel checkpoint layout and resizes samples to `data.out_shape`
   - a real `GPT_S` mean-pressure steering report was generated at `artifacts/bootstrap/reports/GPT_S-mean_pressure.csv`
+  - cross-model `GPT_S/M/L/XL` mean-pressure reports and a `GPT_S` shear-vs-rayleigh regime report are now present under `artifacts/bootstrap/reports/`
+  - 20-step autoregressive rollout reports for `GPT_S/M/L/XL` mean-pressure steering are now present under `artifacts/bootstrap/rollouts/`
+  - transfer reports on public `turbulent_radiative_layer_2D` are now present under `artifacts/bootstrap/transfer/`
   - manuscript-ready figure and table assets were generated under `manuscript/generated/`
 - Immediate next execution steps are:
-  - broaden the current bootstrap from `GPT_S` to `GPT_M/L/XL`
-  - finish public dataset bootstrap for `shear_flow`, `euler_multi_quadrants_periodicBC`, and `turbulent_radiative_layer_2D`
-  - extend beyond `mean_pressure` to regime steering and derived-physics features
-  - add steered long-horizon rollout metrics and failure-rate summaries
-  - replace the current manuscript draft with the full paper body
+  - regenerate manuscript assets and rebuild the PDF after the rollout/transfer additions
+  - run the broader targeted validation suite and commit/push the current public-only study state
+  - revisit `euler_multi_quadrants_periodicBC` only with a more storage-aware bootstrap strategy, since the first attempted partial train download exceeded the writable quota and was removed
 
 ## Current Open Questions
 
 - Public dataset resolutions and field names differ from the checkpoint's canonical training layout. The current repo now handles this for the public bootstrap path, but the same logic still needs to be stress-tested on all remaining public datasets.
-- The current steering eval reports strong next-step metrics and feature shifts, but full long-horizon steered rollout metrics still need to be added for the paper-quality study.
+- `euler_multi_quadrants_periodicBC` remains the one public dataset not yet usable locally for this repo because the first train shard is extremely large; the previous partial download was deleted after it exhausted the writable quota.
 
 # Repository Guidelines
 

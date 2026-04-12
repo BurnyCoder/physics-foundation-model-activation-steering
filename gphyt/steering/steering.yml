@@ -59,6 +59,9 @@ steering:
   top_k_layers: 3
   methods: [mean_diff, logistic, pca]
   scales: [-4, -2, -1, 0, 1, 2, 4]
+  rollout_num_timesteps: 50
+  rollout_num_samples: 4
+  rollout_autoregressive: true
   default_target_feature: mean_velocity_magnitude
   task_ids:
     - regime_shear_vs_euler
@@ -78,5 +81,6 @@ outputs:
   val_collection: artifacts/activations/val_collection.npz
   vector_dir: artifacts/vectors
   sweep_dir: artifacts/sweeps
+  rollout_dir: artifacts/rollouts
   combined_report: artifacts/reports/combined_report.csv
   remote_artifact_dir: gd:projects/physics-foundation-model-mechinterp

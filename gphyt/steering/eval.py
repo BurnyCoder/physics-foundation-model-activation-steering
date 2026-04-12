@@ -17,6 +17,7 @@ from sklearn.metrics import roc_auc_score
 import torch
 from torch.utils.data import DataLoader
 
+from gphyt.models.transformer.loss_fns import MSELoss, NMSELoss, VMSELoss
 from gphyt.steering.adapters import SteeringBackend, list_layer_ids
 from gphyt.steering.features import (
     FEATURE_NAMES,
@@ -26,7 +27,7 @@ from gphyt.steering.features import (
     quartile_contrast_labels,
     zscore,
 )
-from gphyt.steering.tasks import SteeringTask
+from gphyt.steering.tasks import FIELD_NAMES_BY_INDEX, SteeringTask, get_dataset_fields
 
 
 @dataclass
@@ -47,6 +48,14 @@ class DirectionRecord:
     train_size: int
     val_size: int
     metadata: dict
+
+
+CANONICAL_FIELD_INDEX = {name: idx for idx, name in FIELD_NAMES_BY_INDEX.items()}
+ROLLOUT_CRITERIA = {
+    "MSE": MSELoss(dims=(2, 3), return_scalar=False),
+    "NMSE": NMSELoss(dims=(2, 3), return_scalar=False),
+    "VMSE": VMSELoss(dims=(2, 3), return_scalar=False),
+}
 
 
 def mean_pool_activation(activation: torch.Tensor) -> torch.Tensor:
@@ -436,6 +445,364 @@ def bootstrap_confidence_interval(
 
 def _per_sample_mse(pred: torch.Tensor, target: torch.Tensor) -> np.ndarray:
     return ((pred - target) ** 2).reshape(pred.shape[0], -1).mean(dim=1).detach().cpu().numpy()
+
+
+def _dataset_field_indices(dataset_name: str) -> tuple[int, ...]:
+    return tuple(CANONICAL_FIELD_INDEX[field_name] for field_name in get_dataset_fields(dataset_name))
+
+
+def _full_trajectory_dataset(
+    dataset_or_loader: torch.utils.data.Dataset | DataLoader,
+    num_timesteps: int,
+):
+    dataset = (
+        dataset_or_loader.dataset
+        if isinstance(dataset_or_loader, DataLoader)
+        else dataset_or_loader
+    )
+    if not hasattr(dataset, "copy"):
+        raise ValueError("Rollout sweep requires datasets that implement copy()")
+    rollout_dataset = dataset.copy(
+        {
+            "full_trajectory_mode": True,
+            "max_rollout_steps": num_timesteps,
+        }
+    )
+    if rollout_dataset is None:
+        raise ValueError("Dataset copy() returned None for rollout configuration")
+    return rollout_dataset
+
+
+def _rollout_indices(dataset: torch.utils.data.Dataset, num_samples: int) -> np.ndarray:
+    count = min(num_samples, len(dataset))
+    if count <= 0:
+        return np.zeros((0,), dtype=np.int64)
+    return np.arange(count, dtype=np.int64)
+
+
+def _pad_rollout_outputs(
+    outputs: list[torch.Tensor],
+    total_steps: int,
+    frame_shape: tuple[int, ...],
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    if outputs:
+        output_tensor = torch.cat(outputs, dim=1)
+    else:
+        output_tensor = torch.empty((1, 0, *frame_shape), dtype=dtype)
+    if output_tensor.shape[1] < total_steps:
+        pad = torch.full(
+            (1, total_steps - output_tensor.shape[1], *frame_shape),
+            float("nan"),
+            dtype=dtype,
+        )
+        output_tensor = torch.cat([output_tensor, pad], dim=1)
+    return output_tensor
+
+
+@torch.inference_mode()
+def _run_rollout(
+    model: torch.nn.Module,
+    initial_input: torch.Tensor,
+    full_traj: torch.Tensor,
+    device: torch.device,
+    backend: SteeringBackend | None = None,
+    layer_id: str | None = None,
+    direction: torch.Tensor | None = None,
+    scale: float = 0.0,
+    autoregressive: bool = True,
+) -> tuple[torch.Tensor, int]:
+    input_window = initial_input.unsqueeze(0).to(device)
+    full_traj_device = full_traj.to(device)
+
+    outputs: list[torch.Tensor] = []
+    valid_steps = 0
+    total_steps = int(full_traj_device.shape[0])
+
+    with torch.autocast(
+        device_type=device.type,
+        dtype=torch.bfloat16,
+        enabled=device.type == "cuda",
+    ):
+        for step_idx in range(total_steps):
+            if backend is None:
+                output = model(input_window)
+            else:
+                if layer_id is None or direction is None:
+                    raise ValueError("layer_id and direction are required for steered rollouts")
+                output = backend.run_with_direction(
+                    model,
+                    layer_id,
+                    input_window,
+                    direction,
+                    scale,
+                )
+            if not torch.isfinite(output).all():
+                break
+            outputs.append(output.detach().cpu())
+            valid_steps += 1
+            next_frame = (
+                output
+                if autoregressive
+                else full_traj_device[step_idx : step_idx + 1, ...].unsqueeze(0)
+            )
+            input_window = torch.cat([input_window[:, 1:, ...], next_frame], dim=1)
+
+    output_tensor = _pad_rollout_outputs(
+        outputs,
+        total_steps,
+        tuple(full_traj.shape[1:]),
+        dtype=full_traj.dtype,
+    )
+    return output_tensor.squeeze(0), valid_steps
+
+
+def _rollout_feature_value(
+    outputs: torch.Tensor,
+    valid_steps: int,
+    feature_name: str,
+) -> float:
+    if valid_steps <= 0:
+        return np.nan
+    value = compute_feature_batch(outputs[:valid_steps, ...].unsqueeze(0), feature_name)
+    return float(value.detach().cpu().item())
+
+
+def _safe_nanmean(values: list[float] | np.ndarray) -> float:
+    array = np.asarray(values, dtype=np.float64)
+    if array.size == 0 or not np.isfinite(array).any():
+        return np.nan
+    return float(np.nanmean(array))
+
+
+def _safe_final(values: np.ndarray) -> float:
+    values = np.asarray(values, dtype=np.float64)
+    finite_values = values[np.isfinite(values)]
+    if finite_values.size == 0:
+        return np.nan
+    return float(finite_values[-1])
+
+
+def _compute_rollout_losses(
+    outputs: torch.Tensor,
+    target: torch.Tensor,
+    field_indices: tuple[int, ...],
+) -> dict[str, np.ndarray]:
+    outputs_loss = outputs[..., field_indices].unsqueeze(0)
+    target_loss = target[..., field_indices].unsqueeze(0)
+    losses: dict[str, np.ndarray] = {}
+    for name, criterion in ROLLOUT_CRITERIA.items():
+        loss = criterion(outputs_loss, target_loss)
+        loss = loss.squeeze(0).squeeze(-2).squeeze(-2)
+        loss = loss.mean(dim=-1).detach().cpu().numpy()
+        losses[name] = loss
+    return losses
+
+
+def run_rollout_sweep(
+    model: torch.nn.Module,
+    backend: SteeringBackend,
+    datasets: dict[str, torch.utils.data.Dataset | DataLoader],
+    layer_id: str,
+    direction: torch.Tensor,
+    scales: Iterable[float],
+    target_feature: str,
+    auxiliary_features: Iterable[str] | None = None,
+    num_timesteps: int = 50,
+    num_samples: int = 4,
+    autoregressive: bool = True,
+    device: torch.device | None = None,
+) -> pd.DataFrame:
+    device = device or next(model.parameters()).device
+    scales = tuple(scales)
+    auxiliary_features = tuple(
+        feature_name
+        for feature_name in (FEATURE_NAMES if auxiliary_features is None else auxiliary_features)
+        if feature_name != target_feature
+    )
+
+    cached_rollouts = []
+    baseline_target_samples: list[float] = []
+    baseline_aux_samples = {feature_name: [] for feature_name in auxiliary_features}
+
+    for dataset_name, dataset in datasets.items():
+        rollout_dataset = _full_trajectory_dataset(dataset, num_timesteps)
+        field_indices = _dataset_field_indices(dataset_name)
+        for traj_idx in _rollout_indices(rollout_dataset, num_samples):
+            initial_input, full_traj = rollout_dataset[int(traj_idx)]
+            baseline_outputs, baseline_valid_steps = _run_rollout(
+                model=model,
+                initial_input=initial_input,
+                full_traj=full_traj,
+                device=device,
+                autoregressive=autoregressive,
+            )
+            baseline_denorm = _denormalize_prediction(dataset, baseline_outputs)
+            baseline_losses = _compute_rollout_losses(
+                baseline_outputs,
+                full_traj,
+                field_indices,
+            )
+            baseline_target = _rollout_feature_value(
+                baseline_denorm,
+                baseline_valid_steps,
+                target_feature,
+            )
+            baseline_target_samples.append(baseline_target)
+            for feature_name in auxiliary_features:
+                baseline_aux_samples[feature_name].append(
+                    _rollout_feature_value(
+                        baseline_denorm,
+                        baseline_valid_steps,
+                        feature_name,
+                    )
+                )
+            cached_rollouts.append(
+                (
+                    dataset_name,
+                    dataset,
+                    field_indices,
+                    initial_input,
+                    full_traj,
+                    baseline_outputs,
+                    baseline_denorm,
+                    baseline_losses,
+                    baseline_valid_steps,
+                    baseline_target,
+                )
+            )
+
+    baseline_target_std = max(np.nanstd(baseline_target_samples), 1e-6)
+    aux_stds = {}
+    for feature_name, values in baseline_aux_samples.items():
+        std = np.nanstd(values)
+        aux_stds[feature_name] = max(float(std), 1e-6) if np.isfinite(std) else 1.0
+
+    rows = []
+    for scale in scales:
+        target_shift_samples = []
+        off_target_samples = []
+        valid_steps_samples = []
+        nonfinite_samples = []
+        baseline_metric_samples = {name: [] for name in ROLLOUT_CRITERIA}
+        steered_metric_samples = {name: [] for name in ROLLOUT_CRITERIA}
+        baseline_metric_time_samples = {name: [] for name in ROLLOUT_CRITERIA}
+        steered_metric_time_samples = {name: [] for name in ROLLOUT_CRITERIA}
+
+        for (
+            dataset_name,
+            dataset,
+            field_indices,
+            initial_input,
+            full_traj,
+            _baseline_outputs,
+            baseline_denorm,
+            baseline_losses,
+            baseline_valid_steps,
+            baseline_target,
+        ) in cached_rollouts:
+            steered_outputs, steered_valid_steps = _run_rollout(
+                model=model,
+                initial_input=initial_input,
+                full_traj=full_traj,
+                device=device,
+                backend=backend,
+                layer_id=layer_id,
+                direction=direction,
+                scale=scale,
+                autoregressive=autoregressive,
+            )
+            steered_denorm = _denormalize_prediction(dataset, steered_outputs)
+            steered_losses = _compute_rollout_losses(
+                steered_outputs,
+                full_traj,
+                field_indices,
+            )
+
+            nonfinite_samples.append(float(steered_valid_steps < full_traj.shape[0]))
+            valid_steps_samples.append(float(steered_valid_steps))
+
+            steered_target = _rollout_feature_value(
+                steered_denorm,
+                steered_valid_steps,
+                target_feature,
+            )
+            if np.isfinite(baseline_target) and np.isfinite(steered_target):
+                target_shift_samples.append(
+                    (steered_target - baseline_target) / baseline_target_std
+                )
+
+            if auxiliary_features:
+                aux_drifts = []
+                for feature_name in auxiliary_features:
+                    baseline_aux = _rollout_feature_value(
+                        baseline_denorm,
+                        baseline_valid_steps,
+                        feature_name,
+                    )
+                    steered_aux = _rollout_feature_value(
+                        steered_denorm,
+                        steered_valid_steps,
+                        feature_name,
+                    )
+                    if np.isfinite(baseline_aux) and np.isfinite(steered_aux):
+                        aux_drifts.append(
+                            abs(steered_aux - baseline_aux) / aux_stds[feature_name]
+                        )
+                if aux_drifts:
+                    off_target_samples.append(float(np.mean(aux_drifts)))
+            else:
+                off_target_samples.append(0.0)
+
+            for metric_name in ROLLOUT_CRITERIA:
+                baseline_metric_samples[metric_name].append(
+                    _safe_final(baseline_losses[metric_name])
+                )
+                steered_metric_samples[metric_name].append(
+                    _safe_final(steered_losses[metric_name])
+                )
+                baseline_metric_time_samples[metric_name].append(
+                    _safe_nanmean(baseline_losses[metric_name])
+                )
+                steered_metric_time_samples[metric_name].append(
+                    _safe_nanmean(steered_losses[metric_name])
+                )
+
+        row = {
+            "layer_id": layer_id,
+            "scale": float(scale),
+            "target_feature": target_feature,
+            "rollout_target_shift_mean": _safe_nanmean(target_shift_samples),
+            "rollout_off_target_drift_mean": _safe_nanmean(off_target_samples),
+            "rollout_nonfinite_fraction": _safe_nanmean(nonfinite_samples),
+            "rollout_valid_steps_mean": _safe_nanmean(valid_steps_samples),
+            "rollout_num_trajectories": int(len(cached_rollouts)),
+            "rollout_num_timesteps": int(num_timesteps),
+            "rollout_autoregressive": bool(autoregressive),
+        }
+        for metric_name in ROLLOUT_CRITERIA:
+            baseline_final = _safe_nanmean(baseline_metric_samples[metric_name])
+            steered_final = _safe_nanmean(steered_metric_samples[metric_name])
+            baseline_time = _safe_nanmean(baseline_metric_time_samples[metric_name])
+            steered_time = _safe_nanmean(steered_metric_time_samples[metric_name])
+            metric_prefix = metric_name.lower()
+            row[f"baseline_rollout_{metric_prefix}_final_mean"] = baseline_final
+            row[f"steered_rollout_{metric_prefix}_final_mean"] = steered_final
+            row[f"rollout_{metric_prefix}_final_delta_mean"] = (
+                steered_final - baseline_final
+                if np.isfinite(steered_final) and np.isfinite(baseline_final)
+                else np.nan
+            )
+            row[f"baseline_rollout_{metric_prefix}_time_mean"] = baseline_time
+            row[f"steered_rollout_{metric_prefix}_time_mean"] = steered_time
+            row[f"rollout_{metric_prefix}_time_delta_mean"] = (
+                steered_time - baseline_time
+                if np.isfinite(steered_time) and np.isfinite(baseline_time)
+                else np.nan
+            )
+        rows.append(row)
+
+    return pd.DataFrame(rows)
 
 
 def run_scale_sweep(

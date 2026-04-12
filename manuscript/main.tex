@@ -4,31 +4,77 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 
-\title{Activation Steering on Public GPhyT Checkpoints}
-\author{Working Draft}
+\title{Library-First Activation Steering on Public GPhyT Checkpoints}
+\author{Public-Only Study}
 \date{\today}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This manuscript records the current public-only activation-steering results for the
-General Physics Transformer (GPhyT). The codebase now supports checkpoint-backed
-activation collection, vector fitting, and steering sweeps on public Hugging Face
-weights and public The Well datasets. The first completed bootstrap experiment
-targets mean-pressure steering on the public GPT\_S checkpoint with Rayleigh-Benard
-validation data.
+This paper presents a public-only activation-steering study for the General
+Physics Transformer (GPhyT). The repository now supports checkpoint-backed
+activation collection, vector fitting, next-step steering sweeps, 20-step
+autoregressive rollout sweeps, and manuscript asset generation on public
+Hugging Face checkpoints and public The Well datasets. On the current
+mean-pressure bootstrap, GPT\_S achieves a next-step shift of about \(+7.84z\)
+at steering scale \(+2\) on Rayleigh-Benard. Under the new 20-step rollout
+evaluation, all tested GPT\_S/M/L/XL runs remain finite at the evaluated
+scales, with GPT\_XL reaching about \(+17.08z\) final pressure shift at
+\(+2\). Transfer to turbulent radiative layer data is strongest for GPT\_S,
+while the larger models remain closer to zero under the same vector and layer
+selection protocol. A separate regime probe on GPT\_S yields validation
+AUC \(= 1.0\) for shear-flow versus Rayleigh-Benard discrimination in the first
+transformer block.
 \end{abstract}
 
-\section{Current Status}
+\section{Introduction}
 
-The steering stack is implemented under \texttt{gphyt/steering/} with a
-library-first backend policy: \texttt{pyvene} is the default intervention
-engine and a thin hook backend remains available as a fallback. Public
-checkpoint download, The Well dataset download, canonical channel mapping,
-resolution resizing, and report generation are all wired into the repository.
+GPhyT is a physics foundation model trained across heterogeneous simulation
+regimes. That makes it a promising target for activation steering: if internal
+representations already organize physically meaningful quantities, a simple
+additive intervention might produce controlled shifts in downstream rollouts
+without retraining the model.
 
-\section{Bootstrap Experiment}
+This study is intentionally public-only. It relies only on the public
+GPhyT checkpoints from Hugging Face and public The Well datasets that can be
+downloaded locally. The goal is not to reproduce the full private training
+study, but to establish a reproducible activation-steering pipeline and report
+what can already be measured from public assets alone.
+
+\section{Method}
+
+The intervention backend is library-first. The default path uses
+\texttt{pyvene} on native GPhyT transformer blocks, with a thin hook fallback
+retained for compatibility. All experiments in this paper use transformer block
+outputs as the intervention sites and additive vector steering as the
+intervention type.
+
+Feature and regime labels are computed on the final input frame. For scalar
+features, labels are z-scored within dataset, then reduced to a top-vs-bottom
+quartile contrast. For regime tasks, labels are taken directly from the dataset
+identity. The current public experiments use pooled block activations,
+difference-of-means directions, and logistic-probe normals. The primary
+cross-model comparisons in this paper focus on the logistic mean-pressure
+direction fit at \texttt{block\_out:0}.
+
+\section{Experimental Setup}
+
+The current paper uses only public assets:
+\begin{itemize}
+\item public GPhyT checkpoints from Hugging Face,
+\item public The Well datasets downloaded locally,
+\item a canonical 5-channel remapping layer inside \texttt{PhysicsDataset}, and
+\item a fixed output resolution matching the public checkpoint geometry.
+\end{itemize}
+
+Because public The Well datasets expose heterogeneous field names and spatial
+resolutions, the repo standardizes them before they reach the model:
+\texttt{buoyancy} and \texttt{tracer} are mapped into the canonical density
+slot when needed, absent channels are zero-filled, and fields are resized to
+the checkpoint training resolution.
+
+\section{Next-Step Steering}
 
 The current bootstrap run uses the public GPT\_S checkpoint, the public
 Rayleigh-Benard dataset, and a single task: steering mean pressure through
@@ -50,7 +96,28 @@ normals, and a three-point scale sweep was run on the validation split.
     \input{generated/bootstrap_gpt_s_mean_pressure_table.tex}
 \end{table}
 
-\section{Interpretation}
+The same mean-pressure bootstrap was then repeated for GPT\_M, GPT\_L, and
+GPT\_XL using the same public dataset, the same first-block intervention site,
+and the same logistic steering recipe. This is not yet the full study, but it
+already exposes an important scaling trend in the current public checkpoints:
+the strongest pressure-control signal in this bootstrap appears in GPT\_S,
+while the larger models trade reduced control magnitude for smaller off-target
+drift and smaller next-step error deltas.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.82\linewidth]{generated/bootstrap_scaling.png}
+    \caption{Scaling trend for logistic mean-pressure steering under the current
+    bootstrap protocol. The curves show target feature shift as a function of
+    steering scale for GPT\_S/M/L/XL.}
+\end{figure}
+
+\begin{table}[t]
+    \centering
+    \caption{Cross-model comparison at steering scale \(+2\) for the logistic
+    mean-pressure direction.}
+    \input{generated/bootstrap_scaling_table.tex}
+\end{table}
 
 The bootstrap report already shows strong directional control: negative scales
 decrease predicted mean pressure, positive scales increase it, and the no-op
@@ -58,15 +125,117 @@ scale remains numerically stable. The steering effect is large compared with the
 baseline variation, while next-step MSE deltas remain on the order of
 \(10^{-4}\) to \(10^{-3}\) for the tested scales.
 
-\section{Next Steps}
+\section{Regime Separation}
 
-The remaining work is to broaden the current bootstrap into the full study:
+To move beyond scalar feature steering, a second bootstrap experiment fit a
+regime-separation direction between public \texttt{shear\_flow} and
+\texttt{rayleigh\_benard} activations using GPT\_S at \texttt{block\_out:0}.
+Under the current few-batch bootstrap, both the difference-of-means and
+logistic directions achieved validation AUC \(= 1.0\), indicating that the
+first transformer block already linearly separates these two regimes in the
+pooled activation space.
+
+\begin{table}[t]
+    \centering
+    \caption{Bootstrap regime result for GPT\_S. The table reports validation
+    regime-separation AUC and the induced change in mean velocity magnitude at
+    steering scale \(+2\).}
+    \input{generated/bootstrap_regime_table.tex}
+\end{table}
+
+The induced velocity-magnitude shift is small compared with the scalar pressure
+steering result, but the representation itself is already highly separable. In
+practice, this suggests that early-block regime information is present and easy
+to probe, while turning that information into a large controlled output shift
+likely requires better layer selection, stronger interventions, or a more
+regime-specific evaluation objective than the current velocity-magnitude proxy.
+
+\section{Autoregressive Rollouts}
+
+Next-step control is not enough for a physics model. The steering pipeline now
+includes 20-step autoregressive rollout sweeps, evaluated on public
+Rayleigh-Benard validation trajectories with the same logistic mean-pressure
+vectors used in the next-step study.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.82\linewidth]{generated/bootstrap_rollout.png}
+    \caption{Cross-model 20-step rollout steering on Rayleigh-Benard. The
+    plotted quantity is the final-frame pressure shift in standard deviations
+    relative to the unsteered rollout.}
+\end{figure}
+
+\begin{table}[t]
+    \centering
+    \caption{20-step autoregressive rollout summary at steering scale \(+2\).}
+    \input{generated/bootstrap_rollout_table.tex}
+\end{table}
+
+The rollout results are qualitatively different from the next-step scaling
+comparison. GPT\_S remains strong, but GPT\_XL becomes the strongest rollout
+controller in the current bootstrap, reaching a final pressure shift of about
+\(17.08z\) at scale \(+2\). All tested models remain finite over the current
+20-step evaluation window and zero non-finite failures were observed in the
+reported sweep.
+
+\section{Transfer}
+
+To test whether the fitted public vectors transfer beyond their source dataset,
+the same logistic mean-pressure directions were evaluated on public
+\texttt{turbulent\_radiative\_layer\_2D} validation data.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.82\linewidth]{generated/bootstrap_transfer.png}
+    \caption{Transfer steering on turbulent radiative layer data. The strongest
+    transferred control signal in the current bootstrap appears in GPT\_S.}
+\end{figure}
+
+\begin{table}[t]
+    \centering
+    \caption{Transfer summary at steering scale \(+2\) on
+    \texttt{turbulent\_radiative\_layer\_2D}.}
+    \input{generated/bootstrap_transfer_table.tex}
+\end{table}
+
+The transfer behavior is more selective than the in-domain results. GPT\_S
+retains a strong positive control signal (\(+2.48z\) at \(+2\)), while GPT\_M,
+GPT\_L, and GPT\_XL remain close to zero under the same intervention recipe.
+This suggests that the current vector quality is highly dataset-specific for
+the larger checkpoints, even when in-domain next-step steering looks clean.
+
+\section{Discussion}
+
+Three observations stand out.
 \begin{itemize}
-\item repeat the pipeline across GPT\_M, GPT\_L, and GPT\_XL,
-\item extend the task set to regime steering and derived-physics features,
-\item add steered long-horizon rollout metrics,
-\item complete transfer experiments on held-out public datasets, and
-\item replace this working draft with the full paper.
+\item Raw next-step steerability does not scale monotonically with model size in
+the current public bootstrap.
+\item Rollout steerability can differ from next-step steerability: GPT\_XL is
+not the strongest next-step controller here, but it is the strongest 20-step
+rollout controller.
+\item Transfer is not guaranteed even when in-domain control is strong. The
+current public mean-pressure vectors transfer well only for GPT\_S.
+\end{itemize}
+
+\section{Limitations}
+
+This remains a public-only study with a deliberately narrow task family. The
+current results are based on a single primary scalar feature, one regime probe,
+and a small number of rollout trajectories. The public
+\texttt{euler\_multi\_quadrants\_periodicBC} dataset was not included in the
+final paper results because the first attempted local bootstrap download was
+too large for the writable quota. A fuller study should add derived-physics
+features, broader layer selection, more transfer datasets, and a more storage-
+aware bootstrap strategy for the largest public Euler assets.
+
+\section{Reproducibility}
+
+The repository now contains:
+\begin{itemize}
+\item checkpoint provenance in \texttt{artifacts/checkpoint\_manifest.json},
+\item bootstrap activation collections, vectors, sweeps, and reports under
+\texttt{artifacts/bootstrap/}, and
+\item manuscript figures and tables generated directly from those reports.
 \end{itemize}
 
 \end{document}

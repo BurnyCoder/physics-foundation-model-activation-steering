@@ -73,6 +73,7 @@ Example commands:
 python -m gphyt.steering.cli collect-activations --config gphyt/steering/steering.yml
 python -m gphyt.steering.cli fit-vectors --config gphyt/steering/steering.yml
 python -m gphyt.steering.cli sweep --config gphyt/steering/steering.yml
+python -m gphyt.steering.cli rollout-sweep --config gphyt/steering/steering.yml
 python -m gphyt.steering.cli report --config gphyt/steering/steering.yml
 ```
 
@@ -87,15 +88,21 @@ uv run pytest -q tests/test_steering
 A first public bootstrap run is now recorded under `artifacts/bootstrap/` and
 `manuscript/generated/`:
 
-- checkpoint: `GPT_S`
-- dataset: `rayleigh_benard`
-- task: `mean_pressure`
-- fitted layer: `block_out:0`
+- in-domain scalar steering: `GPT_S/M/L/XL` on `rayleigh_benard`
+- regime probe: `GPT_S` on `shear_flow` vs `rayleigh_benard`
+- rollout stability: 20-step autoregressive steering on `rayleigh_benard`
+- transfer: public `turbulent_radiative_layer_2D`
 
-The current three-point validation sweep shows strong monotonic control over
-mean pressure. For the difference-of-means direction, scale `-2` produced a
-mean pressure shift of about `-5.27` standard deviations, while scale `+2`
-produced about `+7.76`, with a no-op scale remaining numerically stable.
+Representative current results:
+
+- next-step mean-pressure steering on `GPT_S` reaches about `+7.84z` at scale `+2`
+  on `rayleigh_benard`
+- 20-step rollout steering stays finite for all tested `GPT_S/M/L/XL` runs in the
+  current bootstrap, with `GPT_XL` reaching about `+17.08z` final pressure shift
+  at scale `+2`
+- transfer to `turbulent_radiative_layer_2D` is strongest for `GPT_S`
+  (`+2.48z` at scale `+2`), while the larger checkpoints stay closer to zero
+  under the same bootstrap protocol
 
 ## Datasets
 
