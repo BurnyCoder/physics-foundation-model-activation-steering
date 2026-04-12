@@ -19,7 +19,7 @@
   - transfer reports on public `turbulent_radiative_layer_2D` are now present under `artifacts/bootstrap/transfer/`
   - manuscript-ready figure and table assets were generated under `manuscript/generated/`
 - Immediate next execution steps are:
-  - expand the GIF gallery beyond the initial three renders so the repo shows both strong positive steering and interesting failure/counter-direction cases
+  - expand the GIF gallery beyond pressure-only views so the repo shows multiple XL-steered tasks: pressure, velocity magnitude, regime, and a higher-scale enstrophy case
   - keep the README/manuscript notes aligned with the actual GIF filenames and locations
   - keep `euler_multi_quadrants_periodicBC` deferred until a more storage-aware bootstrap strategy exists
 
@@ -322,10 +322,10 @@ If any answer is **no**, fix it before moving on.
 
 ## 5. Deliverables
 
-1. **Codebase**: Clean, well-documented, tested code in the GitHub repo.
-2. **Experiments**: Completed experiments with logged results.
+1. **Codebase**: Clean, well-documented, tested code in the GitHub repo. 
+2. **Experiments**: Completed experiments with logged results. Visualizations.
 3. **Models**: Any trained or steered model artifacts (store large files on Google Drive).
-4. **Research Paper**: A full paper written in LaTeX, including all results, analysis, and figures.
+4. **Research Paper**: A full paper written in LaTeX, including all results, analysis, and figures. Visualizations.
 
 Record results and learnings **as you go** — do not defer writing until the end.
 

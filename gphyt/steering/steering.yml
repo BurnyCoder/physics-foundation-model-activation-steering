@@ -107,6 +107,72 @@ steering:
       fps: 3
       output_name: bootstrap_gpt_xl_rollout_velocity_neg.gif
       title: GPT_XL negative rollout steering on Rayleigh-Benard
+    - model_size: GPT_XL
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/xl_multitask/vectors/mean_velocity_magnitude/block_out:0-logistic.safetensors
+      scale: -4
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_xl_mean_velocity_rollout.gif
+      title: GPT_XL mean-velocity steering on Rayleigh-Benard
+    - model_size: GPT_XL
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/xl_multitask/vectors/mean_velocity_magnitude/block_out:0-logistic.safetensors
+      scale: -4
+      traj_idx: 0
+      num_timesteps: 20
+      field: pressure
+      fps: 3
+      output_name: bootstrap_gpt_xl_mean_velocity_pressure.gif
+      title: GPT_XL mean-velocity steering viewed in pressure
+    - model_size: GPT_XL
+      dataset: shear_flow
+      split: valid
+      vector_path: artifacts/bootstrap/xl_multitask/vectors/regime_shear_vs_rayleigh/block_out:0-logistic.safetensors
+      scale: -4
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_xl_regime_shear_velocity.gif
+      title: GPT_XL regime steering on Shear Flow
+    - model_size: GPT_XL
+      dataset: shear_flow
+      split: valid
+      vector_path: artifacts/bootstrap/xl_multitask/vectors/regime_shear_vs_rayleigh/block_out:0-logistic.safetensors
+      scale: 4
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_xl_regime_shear_velocity_flip.gif
+      title: GPT_XL reverse regime steering on Shear Flow
+    - model_size: GPT_XL
+      dataset: shear_flow
+      split: valid
+      vector_path: artifacts/bootstrap/xl_multitask/vectors/regime_shear_vs_rayleigh/block_out:0-logistic.safetensors
+      scale: -4
+      traj_idx: 0
+      num_timesteps: 20
+      field: pressure
+      fps: 3
+      output_name: bootstrap_gpt_xl_regime_shear_pressure.gif
+      title: GPT_XL regime steering on Shear Flow viewed in pressure
+    - model_size: GPT_XL
+      dataset: rayleigh_benard
+      split: valid
+      vector_path: artifacts/bootstrap/xl_multitask/vectors/enstrophy_proxy/block_out:5-logistic.safetensors
+      scale: 4
+      traj_idx: 0
+      num_timesteps: 20
+      field: velocity_magnitude
+      fps: 3
+      output_name: bootstrap_gpt_xl_enstrophy_rollout.gif
+      title: GPT_XL enstrophy steering on Rayleigh-Benard
     - model_size: GPT_S
       dataset: rayleigh_benard
       split: valid
